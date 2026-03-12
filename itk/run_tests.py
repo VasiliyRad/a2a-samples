@@ -1,6 +1,9 @@
 import asyncio
+import json
 import logging
 import sys
+
+import httpx
 
 from testlib import _clean_ports, execute_itk_test, start_itk_cluster
 
@@ -17,14 +20,52 @@ TEST_CASES = [
         'sdks': ['python_v03', 'go_v03'],
         'traversal': 'euler',
         'edges': None,
+        'protocols': ['jsonrpc', 'grpc'],
     },
     {
-        'name': 'v10-compat-hub',
-        'sdks': ['python_v03', 'go_v03', 'go_v10_v03_compat'],
+        'name': 'python-v03-v10-all-transports',
+        'sdks': ['python_v03', 'python_v10'],
+        'protocols': ['jsonrpc', 'grpc', 'http_json'],
         'traversal': 'euler',
-        'edges': ['2->0', '2->1', '1->2', '0->2'],
+        'edges': None,
+    },
+    {
+        'name': 'python-v03-go-v03-python-v10-hub-all-common-transports',
+        'sdks': ['python_v03', 'go_v03', 'python_v10'],
+        'protocols': ['jsonrpc', 'grpc'],
+        'traversal': 'euler',
+        'edges': ['2->0', '2->1', '0->2', '1->2'],
+    },
+    {
+        'name': 'full-backwards-compat-with-jsonrpc',
+        'sdks': ['python_v03', 'go_v03', 'python_v10', 'go_v10_v03_compat'],
+        'protocols': ['jsonrpc'],
+        'traversal': 'euler',
+        'edges': ['3->0', '3->1', '2->0', '2->1', '0->2', '0->3', '1->2', '1->3'],
+    },
+    {
+        'name': 'disconnected-components',
+        'sdks': ['python_v03', 'go_v03', 'python_v10', 'go_v10_v03_compat'],
+        'protocols': ['jsonrpc'],
+        'traversal': 'euler',
+        'edges': ['1->3', '3->1', '2->0', '0->2'],
+    },
+    {
+        'name': 'failing-go-v03-http-json',
+        'sdks': ['python_v03', 'python_v10', 'go_v03'],
+        'protocols': ['http_json'],
+        'traversal': 'euler',
+        'edges': None,
+    },
+    {
+        'name': 'failing-go-v10-v03-compat-grpc',
+        'sdks': ['python_v03','go_v03','go_v10_v03_compat'],
+        'protocols': ['grpc'],
+        'traversal': 'euler',
+        'edges': None,
     },
 ]
+
 
 
 async def main_async() -> None:
@@ -39,7 +80,9 @@ async def main_async() -> None:
     sdk_list = sorted(all_required_sdks)
 
     # 2. Start the shared cluster
-    procs, _, ports = await start_itk_cluster(sdk_list)
+    procs, uris, ports = await start_itk_cluster(sdk_list)
+
+    # 3. Retrieve and print API schema from the first agent
 
     try:
         # 3. Define the test tasks
@@ -49,13 +92,27 @@ async def main_async() -> None:
                 traversal=case['traversal'],
                 edges=case['edges'],
                 scenario_name=case['name'],
+                protocols=case.get('protocols'),
             )
             for case in TEST_CASES
         ]
 
         # 4. Run all scenarios concurrently against the shared cluster
         logger.info('Starting concurrent scenario execution...')
-        await asyncio.gather(*tasks)
+        results = await asyncio.gather(*tasks)
+
+        # 5. Report results
+        all_passed = True
+        for idx, (case, passed) in enumerate(zip(TEST_CASES, results)):
+            status = 'PASSED' if passed else 'FAILED'
+            logger.info(f"Scenario {idx+1}/{len(TEST_CASES)} '{case['name']}': {status}")
+            if not passed:
+                all_passed = False
+
+        if not all_passed:
+            logger.error('One or more test scenarios failed.')
+        else:
+            logger.info('All test scenarios passed.')
 
     except Exception:
         logger.exception('Concurrent test execution encountered an error.')

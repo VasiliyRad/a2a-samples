@@ -11,6 +11,7 @@ GRPC_PORT = '11003'
 
 
 def _spawn_agent() -> subprocess.Popen:
+    log_file = open(_ROOT_DIR / 'go_v10_v03_compat.log', 'w')
     return subprocess.Popen(  # noqa: S603
         [  # noqa: S607
             'go',
@@ -24,7 +25,7 @@ def _spawn_agent() -> subprocess.Popen:
             'true',
         ],
         cwd=_ROOT_DIR / 'agents/go/v10',
-        stdout=subprocess.PIPE,
+        stdout=log_file,
         stderr=subprocess.STDOUT,
         text=True,
     )

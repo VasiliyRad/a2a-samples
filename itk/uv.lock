@@ -29,6 +29,11 @@ wheels = [
 ]
 
 [package.optional-dependencies]
+grpc = [
+    { name = "grpcio" },
+    { name = "grpcio-reflection" },
+    { name = "grpcio-tools" },
+]
 http-server = [
     { name = "fastapi" },
     { name = "sse-starlette" },
@@ -566,7 +571,7 @@ name = "itk-agents-v03"
 version = "0.1.0"
 source = { editable = "agents/python/v03" }
 dependencies = [
-    { name = "a2a-sdk" },
+    { name = "a2a-sdk", extra = ["grpc"] },
     { name = "click" },
     { name = "fastapi" },
     { name = "grpcio" },
@@ -576,7 +581,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "a2a-sdk", specifier = ">=0.3.0" },
+    { name = "a2a-sdk", extras = ["grpc"], specifier = "==0.3.24" },
     { name = "click" },
     { name = "fastapi" },
     { name = "grpcio" },
